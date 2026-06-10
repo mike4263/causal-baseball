@@ -360,7 +360,10 @@ function renderCount(){
 }
 
 function renderBases(){
-  [1,2,3].forEach(b => $(`base${b}`).classList.toggle("occupied", !!state.bases[b]));
+  [1,2,3].forEach(b => {
+    $(`base${b}`).classList.toggle("occupied", !!state.bases[b]);
+    $(`seg${b}`).classList.toggle("active", !!state.bases[b]);
+  });
 }
 
 function renderOuts(){

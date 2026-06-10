@@ -117,12 +117,24 @@
 
         <div class="bases-card">
           <span class="small-label">Bases</span>
-          <div class="diamond" aria-label="Bases">
-            <button id="base2" data-base="2" class="base base-2" title="Second base"></button>
-            <button id="base3" data-base="3" class="base base-3" title="Third base"></button>
-            <button id="base1" data-base="1" class="base base-1" title="First base"></button>
-            <div class="home-plate"></div>
-          </div>
+          <svg viewBox="0 0 160 160" class="diamond-svg" aria-label="Bases">
+            <!-- infield dirt -->
+            <polygon points="80,144 144,80 80,16 16,80" class="infield-dirt"/>
+            <!-- baselines -->
+            <polyline points="80,144 144,80 80,16 16,80 80,144" class="baseline"/>
+            <!-- highlighted segments (one per base, shown when occupied) -->
+            <line id="seg1" class="base-seg" x1="80" y1="144" x2="144" y2="80"/>
+            <line id="seg2" class="base-seg" x1="144" y1="80"  x2="80"  y2="16"/>
+            <line id="seg3" class="base-seg" x1="80" y1="16"   x2="16"  y2="80"/>
+            <!-- pitcher's mound -->
+            <circle cx="80" cy="83" r="9" class="mound"/>
+            <!-- bases (clickable) -->
+            <rect id="base2" class="base" x="72" y="8"   width="16" height="16" transform="rotate(45,80,16)"  tabindex="0" aria-label="Second base"/>
+            <rect id="base1" class="base" x="136" y="72" width="16" height="16" transform="rotate(45,144,80)" tabindex="0" aria-label="First base"/>
+            <rect id="base3" class="base" x="8"   y="72" width="16" height="16" transform="rotate(45,16,80)"  tabindex="0" aria-label="Third base"/>
+            <!-- home plate -->
+            <polygon points="80,151 91,142 91,132 69,132 69,142" class="home-plate"/>
+          </svg>
           <div class="mini-controls">
             <button id="clearBases" class="ghost">Clear Bases</button>
             <button id="scoreRunner" class="ghost">+ Run</button>

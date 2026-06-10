@@ -244,27 +244,20 @@ button:active{transform:translateY(1px)}
 .balls span.active{background:var(--navy2)}
 .strikes span{border:3px solid var(--red)}
 .strikes span.active{background:var(--red)}
-.diamond{
-  width:150px;height:150px;margin:6px auto 10px;position:relative;
-  transform:rotate(45deg);
-  border:3px solid #9fb1c5;
+.diamond-svg{display:block;width:150px;height:150px;margin:6px auto 10px}
+.infield-dirt{fill:#eee8da}
+.baseline{fill:none;stroke:#9fb1c5;stroke-width:2.5;stroke-linejoin:round}
+.base-seg{fill:none;stroke:var(--gold);stroke-width:4;stroke-linecap:round;opacity:0;transition:opacity .2s}
+.base-seg.active{opacity:1}
+.mound{fill:#e0d0bc;stroke:#c0a87c;stroke-width:1.5}
+.diamond-svg .base{
+  fill:white;stroke:var(--navy);stroke-width:2.5;
+  cursor:pointer;transition:fill .12s;
 }
-.base{
-  position:absolute;
-  width:34px;height:34px;
-  border-radius:7px;
-  border:3px solid var(--navy);
-  background:white;
-}
-.base.occupied{background:var(--gold)}
-.base-2{left:50%;top:-18px;transform:translateX(-50%)}
-.base-1{right:-18px;top:50%;transform:translateY(-50%)}
-.base-3{left:-18px;top:50%;transform:translateY(-50%)}
-.home-plate{
-  position:absolute;bottom:-15px;left:50%;transform:translateX(-50%);
-  width:28px;height:28px;border-radius:4px;
-  border:3px solid var(--red);background:white;
-}
+.diamond-svg .base.occupied{fill:var(--gold)}
+.diamond-svg .base:hover{fill:#edf2f7}
+.diamond-svg .base.occupied:hover{fill:var(--gold);opacity:.85}
+.diamond-svg .home-plate{fill:white;stroke:var(--red);stroke-width:2.5}
 .button-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 .play{background:#f3f6fb;border:1px solid #d8e1ee;color:var(--navy);min-height:54px}
 .play:hover{border-color:var(--red);box-shadow:0 0 0 3px rgba(186,12,47,.08)}
