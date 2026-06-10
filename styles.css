@@ -330,6 +330,16 @@ footer{text-align:center;color:var(--muted);padding:20px}
   border-radius:12px;font-size:15px;font-weight:700;color:var(--navy);
   background:white;cursor:pointer;
 }
+.flyout-card input[type="text"]{
+  width:100%;padding:11px 14px;border:1px solid var(--line);
+  border-radius:12px;font-size:15px;font-weight:700;color:var(--navy);
+  background:white;
+}
+.poll-status{
+  display:inline-flex;align-items:center;
+  font-size:12px;font-weight:900;color:var(--green);
+  letter-spacing:.04em;padding:0 4px;
+}
 .pos-btn{
   position:absolute;
   width:36px;height:36px;

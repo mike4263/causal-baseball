@@ -16,8 +16,10 @@ const state = {
 };
 
 for (const side of ["away","home"]) {
-  for (let i=1;i<=11;i++) state.teams[side].lineup.push({name:"", pos:"", ab:0, r:0, h:0, rbi:0});
+  for (let i=1;i<=9;i++) state.teams[side].lineup.push({name:"", pos:"", ab:0, r:0, h:0, rbi:0});
 }
+
+let pollTimer = null;
 
 const $ = (id)=>document.getElementById(id);
 const API_BASE = "https://statsapi.mlb.com/api/v1";
@@ -32,6 +34,7 @@ function loadFromStorage(){
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return false;
     Object.assign(state, JSON.parse(raw));
+    for (const side of ["away","home"]) state.teams[side].lineup = state.teams[side].lineup.slice(0,9);
     $("setupScreen").classList.add("hidden");
     return true;
   } catch(_){ return false; }
@@ -139,7 +142,7 @@ function extractStartingLineup(teamBox){
 
 function applyLineup(side, lineup){
   const team = state.teams[side];
-  for (let i=0; i<11; i++) {
+  for (let i=0; i<9; i++) {
     const player = lineup[i] || {name:"", pos:"", ab:0, r:0, h:0, rbi:0};
     team.lineup[i] = {...team.lineup[i], name: player.name, pos: player.pos, ab:0, r:0, h:0, rbi:0};
   }
@@ -191,6 +194,7 @@ async function loadGame(scheduleGame){
     state.half = "Top";
     setStatus(state.gameMeta.lineupStatus, awayLineup.length || homeLineup.length ? "success" : "error");
     render();
+    startPolling();
     if (!awayLineup.length || !homeLineup.length) {
       alert("The game loaded, but one or both starting lineups were not posted yet. You can still enter players manually or reopen Game Setup later.");
     }
@@ -553,12 +557,87 @@ async function goLive(){
     state.gameMeta.status = gameData.status?.detailedState || state.gameMeta.status;
     state.log.unshift(`[Go Live] Synced to ${state.half} ${state.inning} — ${state.gameMeta.status}`);
     render();
+    startPolling();
   } catch(err) {
     alert(`Could not sync live data: ${err.message}`);
   } finally {
     btn.disabled = false;
     btn.textContent = "Go Live";
   }
+}
+
+function updatePollIndicator(active){
+  const el = $("pollStatus");
+  if (!el) return;
+  el.hidden = !active;
+}
+
+function detectCurrentLineup(teamBox){
+  const players = teamBox?.players || {};
+  const slots = {};
+  Object.values(players).forEach(p => {
+    const order = Number(p.battingOrder || 0);
+    if (!order) return;
+    const slot = Math.floor(order / 100);
+    if (slot < 1 || slot > 9) return;
+    if (!slots[slot] || order > slots[slot].order){
+      slots[slot] = { order, name: p.person?.fullName || "", pos: p.position?.abbreviation || "" };
+    }
+  });
+  return slots;
+}
+
+async function pollForSubs(){
+  if (!state.gameMeta?.gamePk){ stopPolling(); return; }
+  try {
+    const feed = await fetchJson(`https://statsapi.mlb.com/api/v1.1/game/${state.gameMeta.gamePk}/feed/live`);
+    const status = feed.gameData?.status?.detailedState || "";
+    if (status) state.gameMeta.status = status;
+    if (status === "Final" || status === "Game Over"){ stopPolling(); return; }
+
+    const boxTeams = feed.liveData?.boxscore?.teams || {};
+    const boxSlots = [boxTeams.away, boxTeams.home].filter(Boolean);
+    const findBox = id => boxSlots.find(t => t.team?.id === id) || boxSlots.find(t => !t.team?.id);
+
+    let snapshotSaved = false;
+    let anyChange = false;
+
+    for (const key of ["away", "home"]){
+      const box = findBox(state.teams[key].id);
+      if (!box) continue;
+      const apiSlots = detectCurrentLineup(box);
+      const team = state.teams[key];
+
+      for (let slot = 1; slot <= 9; slot++){
+        const api = apiSlots[slot];
+        if (!api?.name) continue;
+        const current = team.lineup[slot - 1];
+        if (api.name === current.name) continue;
+
+        if (!snapshotSaved){ saveSnapshot(); snapshotSaved = true; }
+        const oldName = current.name;
+        team.lineup[slot - 1] = { name: api.name, pos: api.pos, ab: 0, r: 0, h: 0, rbi: 0 };
+        anyChange = true;
+        if (oldName){
+          state.log.unshift(`${state.half} ${state.inning}: SUB — ${api.name}${api.pos ? " ("+api.pos+")" : ""} for ${oldName} [auto]`);
+        }
+      }
+    }
+
+    if (anyChange) render();
+  } catch(_){}
+}
+
+function startPolling(){
+  stopPolling();
+  if (!state.gameMeta?.gamePk) return;
+  updatePollIndicator(true);
+  pollTimer = setInterval(pollForSubs, 30000);
+}
+
+function stopPolling(){
+  if (pollTimer){ clearInterval(pollTimer); pollTimer = null; }
+  updatePollIndicator(false);
 }
 
 // Setup event listeners
@@ -680,6 +759,7 @@ $("clearLog").addEventListener("click", ()=>{saveSnapshot(); state.log=[]; rende
 $("downloadCsv").addEventListener("click", downloadCsv);
 $("resetGame").addEventListener("click", ()=>{
   if (!confirm("Reset the whole game?")) return;
+  stopPolling();
   localStorage.removeItem(STORAGE_KEY);
   location.reload();
 });
@@ -687,3 +767,4 @@ $("resetGame").addEventListener("click", ()=>{
 const hasSavedGame = loadFromStorage();
 render();
 if (!hasSavedGame) fetchGames();
+else startPolling();
