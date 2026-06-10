@@ -1,0 +1,25 @@
+{
+  "name": "casual_baseball_scorekeeper",
+  "version": "1.0.0",
+  "description": "A self-contained browser scorekeeper for watching baseball at home.",
+  "main": "app.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "node server.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/mike4263/causal-baseball.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/mike4263/causal-baseball/issues"
+  },
+  "homepage": "https://github.com/mike4263/causal-baseball#readme",
+  "dependencies": {
+    "express": "^5.2.1"
+  }
+}
