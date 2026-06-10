@@ -25,6 +25,25 @@ const $ = (id)=>document.getElementById(id);
 const API_BASE = "https://statsapi.mlb.com/api/v1";
 const STORAGE_KEY = "cbs_state";
 
+const POS_TO_NUM = { P:1, C:2, "1B":3, "2B":4, "3B":5, SS:6, LF:7, CF:8, RF:9 };
+const NUM_TO_ABBR = ["","P","C","1B","2B","3B","SS","LF","CF","RF"];
+
+function posOptions(preselect = "", blankLabel = ""){
+  const defense = otherTeam();
+  const playerAtPos = {};
+  defense.lineup.forEach(p => {
+    const n = POS_TO_NUM[p.pos];
+    if (n && p.name) playerAtPos[n] = p.name;
+  });
+  const opts = blankLabel ? [`<option value="">${blankLabel}</option>`] : [];
+  for (let n = 1; n <= 9; n++){
+    const abbr = NUM_TO_ABBR[n];
+    const label = playerAtPos[n] ? `${n} – ${abbr} ${playerAtPos[n]}` : `${n} – ${abbr}`;
+    opts.push(`<option value="${n}"${String(n)===String(preselect)?" selected":""}>${label}</option>`);
+  }
+  return opts.join("");
+}
+
 function saveToStorage(){
   try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch(_){}
 }
@@ -562,7 +581,7 @@ async function goLive(){
     alert(`Could not sync live data: ${err.message}`);
   } finally {
     btn.disabled = false;
-    btn.textContent = "Go Live";
+    btn.textContent = "Advance to Real Time";
   }
 }
 
@@ -647,7 +666,10 @@ $("skipSetup").addEventListener("click", ()=>$("setupScreen").classList.add("hid
 $("openSetup").addEventListener("click", ()=>$("setupScreen").classList.remove("hidden"));
 $("goLive").addEventListener("click", goLive);
 
-function openFlyoutDialog(){ $("flyoutSelect").value = ""; $("flyoutDialog").classList.remove("hidden"); }
+function openFlyoutDialog(){
+  $("flyoutSelect").innerHTML = `<option value="">— or pick from list —</option>` + posOptions();
+  $("flyoutDialog").classList.remove("hidden");
+}
 function closeFlyoutDialog(){ $("flyoutDialog").classList.add("hidden"); }
 
 function scoreFlyout(pos){
@@ -667,8 +689,8 @@ function scoreFlyout(pos){
 // Scoring event listeners
 document.querySelectorAll(".play:not(#flyoutBtn):not(#groundoutBtn):not(#errorBtn)").forEach(btn=>btn.addEventListener("click", ()=>scorePlay(btn)));
 function openGroundoutDialog(){
-  $("groundoutFrom").value = "";
-  $("groundoutTo").value   = "3";
+  $("groundoutFrom").innerHTML = posOptions("", "—");
+  $("groundoutTo").innerHTML   = posOptions("3");
   $("groundoutPreview").textContent = "—";
   $("groundoutDialog").classList.remove("hidden");
 }
@@ -691,7 +713,10 @@ function scoreGroundout(){
   render();
 }
 
-function openErrorDialog(){ $("errorPos").value = ""; $("errorDialog").classList.remove("hidden"); }
+function openErrorDialog(){
+  $("errorPos").innerHTML = posOptions("", "— select fielder —");
+  $("errorDialog").classList.remove("hidden");
+}
 function closeErrorDialog(){ $("errorDialog").classList.add("hidden"); }
 function scoreError(){
   const pos = $("errorPos").value;
