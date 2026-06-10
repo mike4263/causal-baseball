@@ -145,28 +145,16 @@ body{
 .eyebrow{letter-spacing:.22em;text-transform:uppercase;color:#ffccd5;margin:0 0 2px;font-weight:800}
 h1{font-size:clamp(36px,5vw,74px);line-height:.9;margin:0;text-transform:uppercase;letter-spacing:.04em}
 .subhead{margin:.5rem 0 0;color:#d9e3f0;max-width:720px}
-.scorebug{
-  min-width:360px;
-  display:grid;
-  grid-template-columns: 1fr auto auto auto 1fr;
-  align-items:end;
-  gap:10px;
-  background:rgba(255,255,255,.1);
-  border:1px solid rgba(255,255,255,.18);
-  padding:12px;
-  border-radius:18px;
-}
-.scorebug label{display:block;font-size:11px;text-transform:uppercase;color:#b9c9dc;font-weight:800}
-.scorebug input{
-  width:100%;
-  padding:8px;
-  border-radius:10px;
-  border:1px solid rgba(255,255,255,.3);
-  background:white;
+.header-score{
+  background:rgba(255,255,255,.97);
+  border-radius:14px;
+  padding:10px 12px;
+  flex-shrink:0;
+  max-width:min(700px,55vw);
   color:var(--ink);
-  font-weight:800;
 }
-.scorebug strong{font-size:34px}
+.header-score .table-wrap{overflow:auto}
+.header-score table{font-size:13px;white-space:nowrap}
 .app{
   padding:18px;
   display:grid;
@@ -186,8 +174,7 @@ h1{font-size:clamp(36px,5vw,74px);line-height:.9;margin:0;text-transform:upperca
 h2{margin:0;font-size:20px;text-transform:uppercase;letter-spacing:.04em;color:var(--navy)}
 .game-panel{grid-column:1 / span 2}
 .actions-panel{grid-column:3;grid-row:1 / span 2}
-.lineup-panel{grid-column:1}
-.box-panel{grid-column:2}
+.lineup-panel{grid-column:1 / span 2}
 .log-panel{grid-column:1 / span 2}
 .cheat-panel{grid-column:3}
 .game-meta{
@@ -318,9 +305,17 @@ footer{text-align:center;color:var(--muted);padding:20px}
   padding:22px;
   box-shadow:0 24px 60px rgba(0,0,0,.3);
   display:flex;flex-direction:column;align-items:center;gap:16px;
-  max-width:95vw;overflow:auto;
+  max-width:60vw;overflow:auto;
+  zoom:1.5;
 }
 .flyout-card h3{margin:0;font-size:18px;text-transform:uppercase;letter-spacing:.06em;color:var(--navy)}
+.groundout-ref{width:min(300px,75vw);border-radius:10px;border:1px solid var(--line);display:block}
+.groundout-row{display:flex;align-items:flex-end;gap:12px;width:100%}
+.groundout-field{display:flex;flex-direction:column;gap:6px;flex:1}
+.groundout-hyphen{font-size:28px;font-weight:900;color:var(--navy);padding-bottom:9px;line-height:1}
+.groundout-preview{font-size:42px;font-weight:900;color:var(--navy);text-align:center;letter-spacing:.06em;padding:4px 0}
+.groundout-actions{display:flex;gap:8px;width:100%}
+.groundout-actions .primary{flex:1}
 .flyout-map-wrap{
   position:relative;
   line-height:0;
@@ -356,7 +351,8 @@ footer{text-align:center;color:var(--muted);padding:20px}
   .hero{display:block}
   .scorebug{margin-top:14px;min-width:0}
   .app{grid-template-columns:1fr}
-  .game-panel,.actions-panel,.lineup-panel,.box-panel,.log-panel,.cheat-panel{grid-column:auto;grid-row:auto}
+  .game-panel,.actions-panel,.lineup-panel,.log-panel,.cheat-panel{grid-column:auto;grid-row:auto}
+  .header-score{max-width:100%;margin-top:12px}
   .state-grid,.setup-grid{grid-template-columns:1fr}
   .setup-footer{display:block}
 }

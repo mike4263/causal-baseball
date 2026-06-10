@@ -55,24 +55,24 @@
 
   <header class="hero">
     <div class="hero__left">
-      <div class="curly-w">W</div>
       <div>
         <p class="eyebrow">Baseball at Home</p>
         <h1>Casual Scorekeeper</h1>
         <p class="subhead">Score the game without official-scorer stress. Tap what happened, keep the box score, and export your notes.</p>
       </div>
     </div>
-    <div class="scorebug">
-      <div>
-        <label>Visitor</label>
-        <input id="awayName" value="Opponent" />
-      </div>
-      <strong id="awayRunsTop">0</strong>
-      <span>—</span>
-      <strong id="homeRunsTop">0</strong>
-      <div>
-        <label>Home</label>
-        <input id="homeName" value="Nationals" />
+    <input type="hidden" id="awayName" value="Opponent" />
+    <input type="hidden" id="homeName" value="Nationals" />
+    <div class="header-score">
+      <div class="table-wrap">
+        <table id="boxScore">
+          <thead>
+            <tr>
+              <th>Team</th><th>1</th><th>2</th><th>3</th><th>4</th><th>5</th><th>6</th><th>7</th><th>8</th><th>9</th><th>R</th><th>H</th><th>E</th><th>LOB</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
       </div>
     </div>
   </header>
@@ -82,6 +82,7 @@
       <div class="section-title">
         <h2>Game State</h2>
         <div>
+          <button id="goLive" class="ghost">Go Live</button>
           <button id="openSetup" class="ghost">Game Setup</button>
           <button id="resetGame" class="ghost danger">Reset</button>
         </div>
@@ -180,10 +181,9 @@
         <button class="play" data-play="HBP" data-type="walk" data-bases="1">Hit By Pitch</button>
         <button class="play out" data-play="K" data-type="out">Strikeout</button>
         <button class="play out" data-play="ꓘ" data-type="out">Looking K</button>
-        <button class="play out" data-play="6-3" data-type="out">Groundout 6-3</button>
-        <button class="play out" data-play="4-3" data-type="out">Groundout 4-3</button>
+        <button id="groundoutBtn" class="play out">Ground Out</button>
         <button id="flyoutBtn" class="play out">Fly Out</button>
-        <button class="play" data-play="E" data-type="reach">Error</button>
+        <button id="errorBtn" class="play">Error</button>
         <button class="play" data-play="FC" data-type="reach">Fielder’s Choice</button>
         <button class="play" data-play="SB" data-type="note">Stolen Base</button>
         <button class="play" data-play="WP" data-type="note">Wild Pitch</button>
@@ -213,27 +213,11 @@
       <div id="lineup" class="lineup"></div>
     </section>
 
-    <section class="panel box-panel">
-      <div class="section-title">
-        <h2>Box Score</h2>
-        <button id="downloadCsv" class="ghost">Download CSV</button>
-      </div>
-      <div class="table-wrap">
-        <table id="boxScore">
-          <thead>
-            <tr>
-              <th>Team</th><th>1</th><th>2</th><th>3</th><th>4</th><th>5</th><th>6</th><th>7</th><th>8</th><th>9</th><th>R</th><th>H</th><th>E</th><th>LOB</th>
-            </tr>
-          </thead>
-          <tbody></tbody>
-        </table>
-      </div>
-    </section>
-
     <section class="panel log-panel">
       <div class="section-title">
         <h2>Play Log</h2>
         <div>
+          <button id="downloadCsv" class="ghost">Download CSV</button>
           <button id="copyLog" class="ghost">Copy</button>
           <button id="clearLog" class="ghost danger">Clear Log</button>
         </div>
@@ -262,6 +246,71 @@
   <footer>
     Built for couch scoring, radio scoring, and casual game tracking. MLB lineup fetch requires an internet connection.
   </footer>
+
+  <div id="errorDialog" class="flyout-overlay hidden" role="dialog" aria-modal="true" aria-label="Error">
+    <div class="flyout-card">
+      <h3>Error — who misplayed it?</h3>
+      <img src="defensive.png" alt="Defensive position numbers" class="groundout-ref" />
+      <select id="errorPos">
+        <option value="">— select fielder —</option>
+        <option value="1">1 – Pitcher</option>
+        <option value="2">2 – Catcher</option>
+        <option value="3">3 – First Base</option>
+        <option value="4">4 – Second Base</option>
+        <option value="5">5 – Third Base</option>
+        <option value="6">6 – Shortstop</option>
+        <option value="7">7 – Left Field</option>
+        <option value="8">8 – Center Field</option>
+        <option value="9">9 – Right Field</option>
+      </select>
+      <button id="errorCancel" class="ghost">Cancel</button>
+    </div>
+  </div>
+
+  <div id="groundoutDialog" class="flyout-overlay hidden" role="dialog" aria-modal="true" aria-label="Ground out">
+    <div class="flyout-card">
+      <h3>Ground Out</h3>
+      <img src="defensive.png" alt="Defensive position numbers" class="groundout-ref" />
+      <div class="groundout-row">
+        <div class="groundout-field">
+          <span class="small-label">Fielded by</span>
+          <select id="groundoutFrom">
+            <option value="">—</option>
+            <option value="1">1 – Pitcher</option>
+            <option value="2">2 – Catcher</option>
+            <option value="3">3 – First Base</option>
+            <option value="4">4 – Second Base</option>
+            <option value="5">5 – Third Base</option>
+            <option value="6">6 – Shortstop</option>
+            <option value="7">7 – Left Field</option>
+            <option value="8">8 – Center Field</option>
+            <option value="9">9 – Right Field</option>
+          </select>
+        </div>
+        <span class="groundout-hyphen">–</span>
+        <div class="groundout-field">
+          <span class="small-label">Thrown to</span>
+          <select id="groundoutTo">
+            <option value="">—</option>
+            <option value="1">1 – Pitcher</option>
+            <option value="2">2 – Catcher</option>
+            <option value="3">3 – First Base</option>
+            <option value="4">4 – Second Base</option>
+            <option value="5">5 – Third Base</option>
+            <option value="6">6 – Shortstop</option>
+            <option value="7">7 – Left Field</option>
+            <option value="8">8 – Center Field</option>
+            <option value="9">9 – Right Field</option>
+          </select>
+        </div>
+      </div>
+      <div class="groundout-preview" id="groundoutPreview">—</div>
+      <div class="groundout-actions">
+        <button id="groundoutRecord" class="primary">Record Out</button>
+        <button id="groundoutCancel" class="ghost">Cancel</button>
+      </div>
+    </div>
+  </div>
 
   <div id="flyoutDialog" class="flyout-overlay hidden" role="dialog" aria-modal="true" aria-label="Select fielder">
     <div class="flyout-card">

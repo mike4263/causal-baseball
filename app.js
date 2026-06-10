@@ -460,10 +460,6 @@ function renderMeta(){
 function renderTopNamesOnly(){
   $("awayName").value = state.teams.away.name;
   $("homeName").value = state.teams.home.name;
-  const at = totals(state.teams.away);
-  const ht = totals(state.teams.home);
-  $("awayRunsTop").textContent = at.r;
-  $("homeRunsTop").textContent = ht.r;
 }
 
 function render(){
@@ -493,11 +489,84 @@ function downloadCsv(){
   a.click();
 }
 
+async function goLive(){
+  if (!state.gameMeta?.gamePk) {
+    alert("No game loaded. Use Game Setup to load a game first.");
+    return;
+  }
+  const btn = $("goLive");
+  btn.disabled = true;
+  btn.textContent = "Syncing…";
+  try {
+    const feed = await fetchJson(`https://statsapi.mlb.com/api/v1.1/game/${state.gameMeta.gamePk}/feed/live`);
+    const linescore = feed.liveData?.linescore;
+    const gameData  = feed.gameData || {};
+
+    if (!linescore?.currentInning) {
+      alert("No live data yet — game may not have started.");
+      return;
+    }
+
+    saveSnapshot();
+
+    // Per-inning runs + LOB from innings array
+    let awayLob = 0, homeLob = 0;
+    (linescore.innings || []).forEach(inn => {
+      const idx = Math.min(inn.num - 1, 8);
+      state.teams.away.runs[idx] = inn.away?.runs   ?? 0;
+      state.teams.home.runs[idx] = inn.home?.runs   ?? 0;
+      awayLob += inn.away?.leftOnBase || 0;
+      homeLob += inn.home?.leftOnBase || 0;
+    });
+
+    // Team-level totals
+    const lsAway = linescore.teams?.away || {};
+    const lsHome = linescore.teams?.home || {};
+    state.teams.away.hits   = lsAway.hits   ?? state.teams.away.hits;
+    state.teams.away.errors = lsAway.errors ?? state.teams.away.errors;
+    state.teams.away.lob    = awayLob;
+    state.teams.home.hits   = lsHome.hits   ?? state.teams.home.hits;
+    state.teams.home.errors = lsHome.errors ?? state.teams.home.errors;
+    state.teams.home.lob    = homeLob;
+
+    // Inning / half / count / outs
+    state.inning  = linescore.currentInning;
+    state.half    = linescore.inningHalf === "Bottom" ? "Bottom" : "Top";
+    state.batting = state.half === "Top" ? "away" : "home";
+    state.outs    = linescore.outs    || 0;
+    state.balls   = Math.min(linescore.balls   || 0, 3);
+    state.strikes = Math.min(linescore.strikes || 0, 2);
+
+    // Bases
+    const offense = linescore.offense || {};
+    state.bases[1] = !!offense.first;
+    state.bases[2] = !!offense.second;
+    state.bases[3] = !!offense.third;
+
+    // Advance to current batter if found in lineup by name
+    if (offense.batter?.fullName) {
+      const team = currentTeam();
+      const idx  = team.lineup.findIndex(p => p.name === offense.batter.fullName);
+      if (idx >= 0) team.batter = idx;
+    }
+
+    state.gameMeta.status = gameData.status?.detailedState || state.gameMeta.status;
+    state.log.unshift(`[Go Live] Synced to ${state.half} ${state.inning} — ${state.gameMeta.status}`);
+    render();
+  } catch(err) {
+    alert(`Could not sync live data: ${err.message}`);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = "Go Live";
+  }
+}
+
 // Setup event listeners
 $("setupDate").value = todayLocalISO();
 $("fetchGames").addEventListener("click", fetchGames);
 $("skipSetup").addEventListener("click", ()=>$("setupScreen").classList.add("hidden"));
 $("openSetup").addEventListener("click", ()=>$("setupScreen").classList.remove("hidden"));
+$("goLive").addEventListener("click", goLive);
 
 function openFlyoutDialog(){ $("flyoutSelect").value = ""; $("flyoutDialog").classList.remove("hidden"); }
 function closeFlyoutDialog(){ $("flyoutDialog").classList.add("hidden"); }
@@ -517,7 +586,61 @@ function scoreFlyout(pos){
 }
 
 // Scoring event listeners
-document.querySelectorAll(".play:not(#flyoutBtn)").forEach(btn=>btn.addEventListener("click", ()=>scorePlay(btn)));
+document.querySelectorAll(".play:not(#flyoutBtn):not(#groundoutBtn):not(#errorBtn)").forEach(btn=>btn.addEventListener("click", ()=>scorePlay(btn)));
+function openGroundoutDialog(){
+  $("groundoutFrom").value = "";
+  $("groundoutTo").value   = "3";
+  $("groundoutPreview").textContent = "—";
+  $("groundoutDialog").classList.remove("hidden");
+}
+function closeGroundoutDialog(){ $("groundoutDialog").classList.add("hidden"); }
+function updateGroundoutPreview(){
+  const f = $("groundoutFrom").value, t = $("groundoutTo").value;
+  $("groundoutPreview").textContent = f && t ? `${f}-${t}` : f || t ? "—" : "—";
+}
+function scoreGroundout(){
+  const from = $("groundoutFrom").value, to = $("groundoutTo").value;
+  if (!from || !to) return;
+  saveSnapshot();
+  const team = currentTeam(), batter = team.lineup[team.batter];
+  const beforeHalf = `${state.half} ${state.inning}`;
+  batter.ab++;
+  state.log.unshift(`${beforeHalf}: ${batterLabel()} ${from}-${to}`);
+  advanceBatter();
+  addOuts(1);
+  closeGroundoutDialog();
+  render();
+}
+
+function openErrorDialog(){ $("errorPos").value = ""; $("errorDialog").classList.remove("hidden"); }
+function closeErrorDialog(){ $("errorDialog").classList.add("hidden"); }
+function scoreError(){
+  const pos = $("errorPos").value;
+  if (!pos) return;
+  saveSnapshot();
+  const team = currentTeam(), batter = team.lineup[team.batter];
+  const beforeHalf = `${state.half} ${state.inning}`;
+  otherTeam().errors++;
+  batter.ab++;
+  state.bases[1] = true;
+  state.log.unshift(`${beforeHalf}: ${batterLabel()} E${pos}`);
+  advanceBatter();
+  closeErrorDialog();
+  render();
+}
+
+$("errorBtn").addEventListener("click", openErrorDialog);
+$("errorCancel").addEventListener("click", closeErrorDialog);
+$("errorDialog").addEventListener("click", e=>{ if(e.target===$("errorDialog")) closeErrorDialog(); });
+$("errorPos").addEventListener("change", scoreError);
+
+$("groundoutBtn").addEventListener("click", openGroundoutDialog);
+$("groundoutCancel").addEventListener("click", closeGroundoutDialog);
+$("groundoutDialog").addEventListener("click", e=>{ if(e.target===$("groundoutDialog")) closeGroundoutDialog(); });
+$("groundoutFrom").addEventListener("change", updateGroundoutPreview);
+$("groundoutTo").addEventListener("change",   updateGroundoutPreview);
+$("groundoutRecord").addEventListener("click", scoreGroundout);
+
 $("flyoutBtn").addEventListener("click", openFlyoutDialog);
 $("flyoutCancel").addEventListener("click", closeFlyoutDialog);
 $("flyoutDialog").addEventListener("click", e=>{ if (e.target === $("flyoutDialog")) closeFlyoutDialog(); });
