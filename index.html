@@ -144,6 +144,11 @@
         </div>
 
         <div class="count-card">
+          <div class="batter-nav">
+            <button id="prevBatter" class="ghost">◀</button>
+            <span id="currentBatterLabel" class="batter-name-label">Opponent #1</span>
+            <button id="nextBatter" class="ghost">▶</button>
+          </div>
           <span class="small-label">Count</span>
           <div class="count-rows">
             <div class="count-row">
@@ -198,25 +203,13 @@
       <p class="hint">Casual mode advances runners automatically for hits/walks. Tap bases if you need to correct anything.</p>
     </section>
 
-    <section class="panel lineup-panel">
+    <section class="panel scorecard-panel">
       <div class="section-title">
-        <h2>Lineup</h2>
+        <h2>Scorecard</h2>
         <div class="team-toggle" role="group">
           <button id="awayToggle" class="active">Opponent</button>
           <button id="homeToggle">Nationals</button>
         </div>
-      </div>
-      <div class="lineup-tools">
-        <button id="prevBatter" class="ghost">◀ Batter</button>
-        <strong>Current: <span id="currentBatterLabel">Opponent #1</span></strong>
-        <button id="nextBatter" class="ghost">Next Batter ▶</button>
-      </div>
-      <div id="lineup" class="lineup"></div>
-    </section>
-
-    <section class="panel scorecard-panel">
-      <div class="section-title">
-        <h2>Scorecard</h2>
       </div>
       <div class="sc-wrap">
         <div id="scorecardGrid"></div>

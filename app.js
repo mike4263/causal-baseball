@@ -410,33 +410,6 @@ function renderOuts(){
   [...$("outsDots").children].forEach((dot, i)=>dot.classList.toggle("active", i < state.outs));
 }
 
-function renderLineup(){
-  const team = currentTeam();
-  $("currentBatterLabel").textContent = batterLabel();
-  $("awayToggle").textContent = state.teams.away.name || "Visitor";
-  $("homeToggle").textContent = state.teams.home.name || "Home";
-  $("awayToggle").classList.toggle("active", state.batting === "away");
-  $("homeToggle").classList.toggle("active", state.batting === "home");
-  const el = $("lineup");
-  el.innerHTML = "";
-  team.lineup.forEach((p, i)=>{
-    const row = document.createElement("div");
-    row.className = "player-row" + (i === team.batter ? " current" : "");
-    row.innerHTML = `
-      <span>${i+1}</span>
-      <input placeholder="Player name" value="${escapeAttr(p.name)}" data-i="${i}" data-field="name" />
-      <input placeholder="Pos" value="${escapeAttr(p.pos)}" data-i="${i}" data-field="pos" />`;
-    el.appendChild(row);
-  });
-  el.querySelectorAll("input").forEach(input=>{
-    input.addEventListener("input", e=>{
-      const i = Number(e.target.dataset.i);
-      const field = e.target.dataset.field;
-      team.lineup[i][field] = e.target.value;
-      renderTopNamesOnly();
-    });
-  });
-}
 
 function escapeAttr(s){
   return String(s || "").replaceAll("&","&amp;").replaceAll('"',"&quot;").replaceAll("<","&lt;");
@@ -475,6 +448,15 @@ function renderScorecard(){
   const team = state.teams[key];
   const pas = state.scorecard[key] || [];
 
+  // Team toggle
+  $("awayToggle").textContent = state.teams.away.name || "Visitor";
+  $("homeToggle").textContent = state.teams.home.name || "Home";
+  $("awayToggle").classList.toggle("active", state.batting === "away");
+  $("homeToggle").classList.toggle("active", state.batting === "home");
+
+  // Current batter label
+  $("currentBatterLabel").textContent = batterLabel();
+
   const lookup = {};
   pas.forEach(pa => {
     if (!lookup[pa.slot]) lookup[pa.slot] = {};
@@ -488,9 +470,12 @@ function renderScorecard(){
 
   for (let slot = 0; slot < 9; slot++){
     const p = team.lineup[slot];
-    const lastName = p.name ? p.name.split(" ").pop() : `#${slot+1}`;
     const current = slot === team.batter;
-    html += `<div class="sc-name${current ? " sc-current" : ""}">${escapeAttr(lastName)}</div>`;
+    html += `<div class="sc-name-cell${current ? " sc-current" : ""}">
+      <span class="sc-slot">${slot+1}</span>
+      <input class="sc-name-input" value="${escapeAttr(p.name)}" placeholder="Name" data-i="${slot}" data-field="name" data-side="${key}" />
+      <input class="sc-pos-input" value="${escapeAttr(p.pos)}" placeholder="Pos" data-i="${slot}" data-field="pos" data-side="${key}" />
+    </div>`;
     for (let inn = 1; inn <= cols; inn++){
       html += buildScorecardCell(lookup[slot]?.[inn]);
     }
@@ -498,6 +483,16 @@ function renderScorecard(){
 
   html += `</div>`;
   el.innerHTML = html;
+
+  el.querySelectorAll("input[data-field]").forEach(input => {
+    input.addEventListener("input", e => {
+      const i = Number(e.target.dataset.i);
+      const field = e.target.dataset.field;
+      const side = e.target.dataset.side;
+      state.teams[side].lineup[i][field] = e.target.value;
+      renderTopNamesOnly();
+    });
+  });
 }
 
 function renderBoxScore(){
@@ -558,7 +553,6 @@ function render(){
   renderBases();
   renderOuts();
   renderCount();
-  renderLineup();
   renderScorecard();
   renderBoxScore();
   renderLog();
