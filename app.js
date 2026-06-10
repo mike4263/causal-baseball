@@ -12,7 +12,8 @@ const state = {
     home: {name:"Nationals", id:120, runs:Array(9).fill(0), hits:0, errors:0, lob:0, batter:0, lineup:[]}
   },
   log: [],
-  history: []
+  history: [],
+  scorecard: { away: [], home: [] }
 };
 
 for (const side of ["away","home"]) {
@@ -54,6 +55,7 @@ function loadFromStorage(){
     if (!raw) return false;
     Object.assign(state, JSON.parse(raw));
     for (const side of ["away","home"]) state.teams[side].lineup = state.teams[side].lineup.slice(0,9);
+    if (!state.scorecard) state.scorecard = { away: [], home: [] };
     $("setupScreen").classList.add("hidden");
     return true;
   } catch(_){ return false; }
@@ -227,7 +229,8 @@ function saveSnapshot(){
   state.history.push(JSON.stringify({
     inning: state.inning, half: state.half, batting: state.batting, outs: state.outs,
     balls: state.balls, strikes: state.strikes,
-    bases: state.bases, teams: state.teams, log: state.log, gameMeta: state.gameMeta
+    bases: state.bases, teams: state.teams, log: state.log, gameMeta: state.gameMeta,
+    scorecard: state.scorecard
   }));
   if (state.history.length > 100) state.history.shift();
 }
@@ -261,6 +264,15 @@ function advanceBatter(){
   team.batter = (team.batter + 1) % 9;
   state.balls = 0;
   state.strikes = 0;
+}
+
+function recordPA(result, reached){
+  state.scorecard[state.batting].push({
+    slot: currentTeam().batter,
+    inning: state.inning,
+    result,
+    reached
+  });
 }
 
 function countLOB(){
@@ -339,19 +351,23 @@ function scorePlay(btn){
     const result = advanceRunners(bases);
     batter.rbi += result.runs;
     detail = `${batterLabel()} ${play}${result.runs ? `, ${result.runs} RBI` : ""}`;
+    recordPA(play, Math.min(bases, 4));
     advanceBatter();
   } else if (type === "walk") {
     advanceRunners(1);
     detail = `${batterLabel()} ${play}`;
+    recordPA(play, 1);
     advanceBatter();
   } else if (type === "out") {
     batter.ab++;
     detail = `${batterLabel()} ${play}`;
+    recordPA(play, 0);
     advanceBatter();
     addOuts(1);
   } else if (type === "doubleplay") {
     batter.ab++;
     detail = `${batterLabel()} DP`;
+    recordPA("DP", 0);
     advanceBatter();
     addOuts(2);
   } else if (type === "reach") {
@@ -359,6 +375,7 @@ function scorePlay(btn){
     batter.ab++;
     state.bases[1] = true;
     detail = `${batterLabel()} ${play}`;
+    recordPA(play, 1);
     advanceBatter();
   } else {
     detail = `${batterLabel()} note: ${play}`;
@@ -408,8 +425,7 @@ function renderLineup(){
     row.innerHTML = `
       <span>${i+1}</span>
       <input placeholder="Player name" value="${escapeAttr(p.name)}" data-i="${i}" data-field="name" />
-      <input placeholder="Pos" value="${escapeAttr(p.pos)}" data-i="${i}" data-field="pos" />
-      <div class="stat">${p.h}-${p.ab}<br>${p.rbi} RBI</div>`;
+      <input placeholder="Pos" value="${escapeAttr(p.pos)}" data-i="${i}" data-field="pos" />`;
     el.appendChild(row);
   });
   el.querySelectorAll("input").forEach(input=>{
@@ -433,6 +449,55 @@ function totals(team){
     e: team.errors,
     lob: team.lob
   };
+}
+
+function buildScorecardCell(pa){
+  if (!pa) return `<div class="sc-cell"></div>`;
+  const r = pa.reached;
+  const s = (n) => r >= n ? " sc-active" : "";
+  return `<div class="sc-cell">
+    <svg viewBox="0 0 56 56" class="sc-svg">
+      ${r >= 4 ? `<polygon points="28,51 51,28 28,5 5,28" class="sc-fill"/>` : ""}
+      <polyline points="28,51 51,28 28,5 5,28 28,51" class="sc-outline"/>
+      <line x1="28" y1="51" x2="51" y2="28" class="sc-seg${s(1)}"/>
+      <line x1="51" y1="28" x2="28" y2="5"  class="sc-seg${s(2)}"/>
+      <line x1="28" y1="5"  x2="5"  y2="28" class="sc-seg${s(3)}"/>
+      <line x1="5"  y1="28" x2="28" y2="51" class="sc-seg${s(4)}"/>
+      <text x="28" y="31" class="sc-result-text">${pa.result}</text>
+    </svg>
+  </div>`;
+}
+
+function renderScorecard(){
+  const el = $("scorecardGrid");
+  if (!el) return;
+  const key = state.batting;
+  const team = state.teams[key];
+  const pas = state.scorecard[key] || [];
+
+  const lookup = {};
+  pas.forEach(pa => {
+    if (!lookup[pa.slot]) lookup[pa.slot] = {};
+    lookup[pa.slot][pa.inning] = pa;
+  });
+
+  const cols = Math.max(state.inning, 9);
+  let html = `<div class="sc-grid" style="--sc-cols:${cols}">`;
+  html += `<div class="sc-hdr sc-hdr-name"></div>`;
+  for (let i = 1; i <= cols; i++) html += `<div class="sc-hdr">${i}</div>`;
+
+  for (let slot = 0; slot < 9; slot++){
+    const p = team.lineup[slot];
+    const lastName = p.name ? p.name.split(" ").pop() : `#${slot+1}`;
+    const current = slot === team.batter;
+    html += `<div class="sc-name${current ? " sc-current" : ""}">${escapeAttr(lastName)}</div>`;
+    for (let inn = 1; inn <= cols; inn++){
+      html += buildScorecardCell(lookup[slot]?.[inn]);
+    }
+  }
+
+  html += `</div>`;
+  el.innerHTML = html;
 }
 
 function renderBoxScore(){
@@ -494,6 +559,7 @@ function render(){
   renderOuts();
   renderCount();
   renderLineup();
+  renderScorecard();
   renderBoxScore();
   renderLog();
   saveToStorage();
@@ -679,6 +745,7 @@ function scoreFlyout(pos){
   const batter = team.lineup[team.batter];
   const beforeHalf = `${state.half} ${state.inning}`;
   batter.ab++;
+  recordPA(play, 0);
   state.log.unshift(`${beforeHalf}: ${batterLabel()} ${play}`);
   advanceBatter();
   addOuts(1);
@@ -706,6 +773,7 @@ function scoreGroundout(){
   const team = currentTeam(), batter = team.lineup[team.batter];
   const beforeHalf = `${state.half} ${state.inning}`;
   batter.ab++;
+  recordPA(`${from}-${to}`, 0);
   state.log.unshift(`${beforeHalf}: ${batterLabel()} ${from}-${to}`);
   advanceBatter();
   addOuts(1);
@@ -727,6 +795,7 @@ function scoreError(){
   otherTeam().errors++;
   batter.ab++;
   state.bases[1] = true;
+  recordPA(`E${pos}`, 1);
   state.log.unshift(`${beforeHalf}: ${batterLabel()} E${pos}`);
   advanceBatter();
   closeErrorDialog();
