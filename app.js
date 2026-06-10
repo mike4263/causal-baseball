@@ -415,11 +415,17 @@ function totals(team){
 function renderBoxScore(){
   const tbody = $("boxScore").querySelector("tbody");
   tbody.innerHTML = "";
+  // half-inning index: Top of N = (N-1)*2, Bottom of N = (N-1)*2+1
+  const halfIdx = (state.inning - 1) * 2 + (state.half === "Bottom" ? 1 : 0);
   for (const key of ["away","home"]) {
     const team = state.teams[key];
     const t = totals(team);
     const tr = document.createElement("tr");
-    const inn = team.runs.map(r=>`<td>${r || ""}</td>`).join("");
+    const inn = team.runs.map((r, i) => {
+      // away done after top of inning i+1; home done after bottom of inning i+1
+      const done = key === "away" ? halfIdx > i * 2 : halfIdx > i * 2 + 1;
+      return `<td>${done ? r : ""}</td>`;
+    }).join("");
     tr.innerHTML = `<td>${team.name}</td>${inn}<td>${t.r}</td><td>${t.h}</td><td>${t.e}</td><td>${t.lob}</td>`;
     tbody.appendChild(tr);
   }
@@ -525,7 +531,7 @@ $("addCustom").addEventListener("click", addCustom);
 $("customText").addEventListener("keydown", e=>{ if(e.key==="Enter") addCustom(); });
 $("addOut").addEventListener("click", ()=>{saveSnapshot(); addOuts(1); render();});
 $("clearOuts").addEventListener("click", ()=>{saveSnapshot(); state.outs=0; render();});
-$("addBall").addEventListener("click", ()=>{saveSnapshot(); state.balls=Math.min(state.balls+1,4); render();});
+$("addBall").addEventListener("click", ()=>{saveSnapshot(); state.balls=Math.min(state.balls+1,3); render();});
 $("addStrike").addEventListener("click", ()=>{saveSnapshot(); state.strikes=Math.min(state.strikes+1,3); render();});
 $("clearCount").addEventListener("click", ()=>{saveSnapshot(); state.balls=0; state.strikes=0; render();});
 $("clearBases").addEventListener("click", ()=>{saveSnapshot(); clearBases(); render();});
