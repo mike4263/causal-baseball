@@ -1,0 +1,288 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Casual Baseball Scorekeeper</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div id="setupScreen" class="setup-screen">
+    <div class="setup-card">
+      <div class="setup-header">
+        <div class="curly-w">W</div>
+        <div>
+          <p class="eyebrow">Washington Nationals</p>
+          <h1>Game Setup</h1>
+          <p class="subhead">Fetch today’s MLB game and load the posted starting lineups when available.</p>
+        </div>
+      </div>
+
+      <div class="setup-grid">
+        <label>
+          Game date
+          <input id="setupDate" type="date" />
+        </label>
+
+        <label>
+          Favorite team
+          <select id="setupTeam">
+            <option value="120" selected>Washington Nationals</option>
+            <option value="">All MLB games</option>
+            <option value="110">Baltimore Orioles</option>
+            <option value="121">New York Mets</option>
+            <option value="147">New York Yankees</option>
+            <option value="143">Philadelphia Phillies</option>
+            <option value="144">Atlanta Braves</option>
+            <option value="119">Los Angeles Dodgers</option>
+            <option value="112">Chicago Cubs</option>
+            <option value="111">Boston Red Sox</option>
+          </select>
+        </label>
+
+        <button id="fetchGames" class="primary setup-button">Find Games</button>
+      </div>
+
+      <div id="setupStatus" class="setup-status"></div>
+      <div id="gameList" class="game-list"></div>
+
+      <div class="setup-footer">
+        <button id="skipSetup" class="ghost">Skip setup / enter manually</button>
+        <p>Lineups come from MLB Stats API game data. They may be blank until lineups are officially posted.</p>
+      </div>
+    </div>
+  </div>
+
+  <header class="hero">
+    <div class="hero__left">
+      <div class="curly-w">W</div>
+      <div>
+        <p class="eyebrow">Baseball at Home</p>
+        <h1>Casual Scorekeeper</h1>
+        <p class="subhead">Score the game without official-scorer stress. Tap what happened, keep the box score, and export your notes.</p>
+      </div>
+    </div>
+    <div class="scorebug">
+      <div>
+        <label>Visitor</label>
+        <input id="awayName" value="Opponent" />
+      </div>
+      <strong id="awayRunsTop">0</strong>
+      <span>—</span>
+      <strong id="homeRunsTop">0</strong>
+      <div>
+        <label>Home</label>
+        <input id="homeName" value="Nationals" />
+      </div>
+    </div>
+  </header>
+
+  <main class="app">
+    <section class="panel game-panel">
+      <div class="section-title">
+        <h2>Game State</h2>
+        <div>
+          <button id="openSetup" class="ghost">Game Setup</button>
+          <button id="resetGame" class="ghost danger">Reset</button>
+        </div>
+      </div>
+
+      <div class="game-meta" id="gameMeta">
+        <span>No MLB game loaded yet.</span>
+      </div>
+
+      <div class="state-grid">
+        <div class="inning-card">
+          <span class="small-label">Inning</span>
+          <div class="inning-row">
+            <button id="halfToggle" class="pill">Top</button>
+            <strong id="inningNumber">1</strong>
+          </div>
+          <div class="mini-controls">
+            <button id="prevHalf" class="ghost">◀ Prev</button>
+            <button id="nextHalf" class="primary">Next Half ▶</button>
+          </div>
+        </div>
+
+        <div class="outs-card">
+          <span class="small-label">Outs</span>
+          <div class="outs" id="outsDots">
+            <span></span><span></span><span></span>
+          </div>
+          <div class="mini-controls">
+            <button id="addOut" class="ghost">+ Out</button>
+            <button id="clearOuts" class="ghost">Clear</button>
+          </div>
+        </div>
+
+        <div class="bases-card">
+          <span class="small-label">Bases</span>
+          <div class="diamond" aria-label="Bases">
+            <button id="base2" data-base="2" class="base base-2" title="Second base"></button>
+            <button id="base3" data-base="3" class="base base-3" title="Third base"></button>
+            <button id="base1" data-base="1" class="base base-1" title="First base"></button>
+            <div class="home-plate"></div>
+          </div>
+          <div class="mini-controls">
+            <button id="clearBases" class="ghost">Clear Bases</button>
+            <button id="scoreRunner" class="ghost">+ Run</button>
+          </div>
+        </div>
+
+        <div class="count-card">
+          <span class="small-label">Count</span>
+          <div class="count-rows">
+            <div class="count-row">
+              <span class="count-label">B</span>
+              <div class="balls" id="ballsDots">
+                <span></span><span></span><span></span><span></span>
+              </div>
+            </div>
+            <div class="count-row">
+              <span class="count-label">S</span>
+              <div class="strikes" id="strikesDots">
+                <span></span><span></span>
+              </div>
+            </div>
+          </div>
+          <div class="mini-controls">
+            <button id="addBall" class="ghost">+ Ball</button>
+            <button id="addStrike" class="ghost">+ Strike</button>
+            <button id="clearCount" class="ghost">Clear</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel actions-panel">
+      <div class="section-title">
+        <h2>Tap the Play</h2>
+        <button id="undo" class="ghost">Undo</button>
+      </div>
+      <div class="button-grid">
+        <button class="play" data-play="1B" data-type="hit" data-bases="1">Single</button>
+        <button class="play" data-play="2B" data-type="hit" data-bases="2">Double</button>
+        <button class="play" data-play="3B" data-type="hit" data-bases="3">Triple</button>
+        <button class="play homer" data-play="HR" data-type="hit" data-bases="4">Home Run</button>
+        <button class="play" data-play="BB" data-type="walk" data-bases="1">Walk</button>
+        <button class="play" data-play="HBP" data-type="walk" data-bases="1">Hit By Pitch</button>
+        <button class="play out" data-play="K" data-type="out">Strikeout</button>
+        <button class="play out" data-play="ꓘ" data-type="out">Looking K</button>
+        <button class="play out" data-play="6-3" data-type="out">Groundout 6-3</button>
+        <button class="play out" data-play="4-3" data-type="out">Groundout 4-3</button>
+        <button id="flyoutBtn" class="play out">Fly Out</button>
+        <button class="play" data-play="E" data-type="reach">Error</button>
+        <button class="play" data-play="FC" data-type="reach">Fielder’s Choice</button>
+        <button class="play" data-play="SB" data-type="note">Stolen Base</button>
+        <button class="play" data-play="WP" data-type="note">Wild Pitch</button>
+        <button class="play" data-play="DP" data-type="doubleplay">Double Play</button>
+      </div>
+
+      <div class="custom-play">
+        <input id="customText" placeholder="Custom note, e.g. 5-4 FC, SF7, E5, RBI" />
+        <button id="addCustom" class="primary">Add Note</button>
+      </div>
+      <p class="hint">Casual mode advances runners automatically for hits/walks. Tap bases if you need to correct anything.</p>
+    </section>
+
+    <section class="panel lineup-panel">
+      <div class="section-title">
+        <h2>Lineup</h2>
+        <div class="team-toggle" role="group">
+          <button id="awayToggle" class="active">Opponent</button>
+          <button id="homeToggle">Nationals</button>
+        </div>
+      </div>
+      <div class="lineup-tools">
+        <button id="prevBatter" class="ghost">◀ Batter</button>
+        <strong>Current: <span id="currentBatterLabel">Opponent #1</span></strong>
+        <button id="nextBatter" class="ghost">Next Batter ▶</button>
+      </div>
+      <div id="lineup" class="lineup"></div>
+    </section>
+
+    <section class="panel box-panel">
+      <div class="section-title">
+        <h2>Box Score</h2>
+        <button id="downloadCsv" class="ghost">Download CSV</button>
+      </div>
+      <div class="table-wrap">
+        <table id="boxScore">
+          <thead>
+            <tr>
+              <th>Team</th><th>1</th><th>2</th><th>3</th><th>4</th><th>5</th><th>6</th><th>7</th><th>8</th><th>9</th><th>R</th><th>H</th><th>E</th><th>LOB</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="panel log-panel">
+      <div class="section-title">
+        <h2>Play Log</h2>
+        <div>
+          <button id="copyLog" class="ghost">Copy</button>
+          <button id="clearLog" class="ghost danger">Clear Log</button>
+        </div>
+      </div>
+      <ol id="playLog" class="play-log"></ol>
+    </section>
+
+    <aside class="panel cheat-panel">
+      <h2>Quick Decoder</h2>
+      <div class="cheat-grid">
+        <span>1</span><p>Pitcher</p>
+        <span>2</span><p>Catcher</p>
+        <span>3</span><p>First Base</p>
+        <span>4</span><p>Second Base</p>
+        <span>5</span><p>Third Base</p>
+        <span>6</span><p>Shortstop</p>
+        <span>7</span><p>Left Field</p>
+        <span>8</span><p>Center Field</p>
+        <span>9</span><p>Right Field</p>
+      </div>
+      <hr />
+      <p><strong>Tip:</strong> Use the app as a “what happened?” tracker. Do not worry about perfect official scoring.</p>
+    </aside>
+  </main>
+
+  <footer>
+    Built for couch scoring, radio scoring, and casual game tracking. MLB lineup fetch requires an internet connection.
+  </footer>
+
+  <div id="flyoutDialog" class="flyout-overlay hidden" role="dialog" aria-modal="true" aria-label="Select fielder">
+    <div class="flyout-card">
+      <h3>Who caught it?</h3>
+      <div class="flyout-map-wrap">
+        <img src="defensive.png" alt="Defensive positions" />
+        <!-- buttons positioned as % of image (522×401 natural size) -->
+        <button class="pos-btn" data-pos="1" title="1 – Pitcher"      style="left:35.4%;top:58.6%">1</button>
+        <button class="pos-btn" data-pos="2" title="2 – Catcher"      style="left:35.4%;top:81.8%">2</button>
+        <button class="pos-btn" data-pos="3" title="3 – First Base"   style="left:55.6%;top:61.1%">3</button>
+        <button class="pos-btn" data-pos="4" title="4 – Second Base"  style="left:47.5%;top:47.4%">4</button>
+        <button class="pos-btn" data-pos="5" title="5 – Third Base"   style="left:21.6%;top:61.1%">5</button>
+        <button class="pos-btn" data-pos="6" title="6 – Shortstop"    style="left:31.6%;top:46.1%">6</button>
+        <button class="pos-btn" data-pos="7" title="7 – Left Field"   style="left:13.0%;top:29.4%">7</button>
+        <button class="pos-btn" data-pos="8" title="8 – Center Field" style="left:41.8%;top:13.0%">8</button>
+        <button class="pos-btn" data-pos="9" title="9 – Right Field"  style="left:67.6%;top:29.4%">9</button>
+      </div>
+      <select id="flyoutSelect">
+        <option value="">— or pick from list —</option>
+        <option value="1">1 – Pitcher</option>
+        <option value="2">2 – Catcher</option>
+        <option value="3">3 – First Base</option>
+        <option value="4">4 – Second Base</option>
+        <option value="5">5 – Third Base</option>
+        <option value="6">6 – Shortstop</option>
+        <option value="7">7 – Left Field</option>
+        <option value="8">8 – Center Field</option>
+        <option value="9">9 – Right Field</option>
+      </select>
+      <button id="flyoutCancel" class="ghost">Cancel</button>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
