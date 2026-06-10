@@ -337,6 +337,8 @@ footer{text-align:center;color:var(--muted);padding:20px}
   font-size:12px;font-weight:900;color:var(--green);
   letter-spacing:.04em;padding:0 4px;
 }
+.runner-btns{display:flex;flex-direction:column;gap:10px;width:100%}
+.runner-btn{width:100%;padding:14px 20px;font-size:15px}
 .pos-btn{
   position:absolute;
   width:36px;height:36px;

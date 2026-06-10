@@ -6,6 +6,7 @@ const state = {
   balls: 0,
   strikes: 0,
   bases: {1:false,2:false,3:false},
+  baseRunners: {1:null,2:null,3:null},
   gameMeta: null,
   teams: {
     away: {name:"Opponent", id:null, runs:Array(9).fill(0), hits:0, errors:0, lob:0, batter:0, lineup:[]},
@@ -21,6 +22,7 @@ for (const side of ["away","home"]) {
 }
 
 let pollTimer = null;
+let scorecardView = "away";
 
 const $ = (id)=>document.getElementById(id);
 const API_BASE = "https://statsapi.mlb.com/api/v1";
@@ -56,6 +58,7 @@ function loadFromStorage(){
     Object.assign(state, JSON.parse(raw));
     for (const side of ["away","home"]) state.teams[side].lineup = state.teams[side].lineup.slice(0,9);
     if (!state.scorecard) state.scorecard = { away: [], home: [] };
+    if (!state.baseRunners) state.baseRunners = {1:null,2:null,3:null};
     $("setupScreen").classList.add("hidden");
     return true;
   } catch(_){ return false; }
@@ -229,7 +232,7 @@ function saveSnapshot(){
   state.history.push(JSON.stringify({
     inning: state.inning, half: state.half, batting: state.batting, outs: state.outs,
     balls: state.balls, strikes: state.strikes,
-    bases: state.bases, teams: state.teams, log: state.log, gameMeta: state.gameMeta,
+    bases: state.bases, baseRunners: state.baseRunners, teams: state.teams, log: state.log, gameMeta: state.gameMeta,
     scorecard: state.scorecard
   }));
   if (state.history.length > 100) state.history.shift();
@@ -279,12 +282,25 @@ function countLOB(){
   return Object.values(state.bases).filter(Boolean).length;
 }
 
-function clearBases(){ state.bases = {1:false,2:false,3:false}; }
+function clearBases(){
+  state.bases = {1:false,2:false,3:false};
+  state.baseRunners = {1:null,2:null,3:null};
+}
+
+function updatePAReached(ref, newReached){
+  if (!ref) return;
+  const pa = (state.scorecard[state.batting] || []).find(
+    p => p.slot === ref.slot && p.inning === ref.inning
+  );
+  if (pa && newReached > pa.reached) pa.reached = newReached;
+}
 
 function advanceRunners(bases){
   let runs = 0;
   const newBases = {1:false,2:false,3:false};
+  const newRunners = {1:null,2:null,3:null};
   if (bases >= 4) {
+    for (const b of [1,2,3]) updatePAReached(state.baseRunners[b], 4);
     runs += Object.values(state.bases).filter(Boolean).length + 1;
     clearBases();
     addRun(state.batting, runs);
@@ -293,11 +309,18 @@ function advanceRunners(bases){
   for (const b of [3,2,1]) {
     if (!state.bases[b]) continue;
     const dest = b + bases;
-    if (dest >= 4) runs++;
-    else newBases[dest] = true;
+    if (dest >= 4) {
+      runs++;
+      updatePAReached(state.baseRunners[b], 4);
+    } else {
+      newBases[dest] = true;
+      newRunners[dest] = state.baseRunners[b];
+      updatePAReached(state.baseRunners[b], dest);
+    }
   }
   newBases[bases] = true;
   state.bases = newBases;
+  state.baseRunners = newRunners;
   addRun(state.batting, runs);
   return {runs};
 }
@@ -352,11 +375,13 @@ function scorePlay(btn){
     batter.rbi += result.runs;
     detail = `${batterLabel()} ${play}${result.runs ? `, ${result.runs} RBI` : ""}`;
     recordPA(play, Math.min(bases, 4));
+    if (bases < 4) state.baseRunners[bases] = {slot: currentTeam().batter, inning: state.inning};
     advanceBatter();
   } else if (type === "walk") {
     advanceRunners(1);
     detail = `${batterLabel()} ${play}`;
     recordPA(play, 1);
+    state.baseRunners[1] = {slot: currentTeam().batter, inning: state.inning};
     advanceBatter();
   } else if (type === "out") {
     batter.ab++;
@@ -376,6 +401,7 @@ function scorePlay(btn){
     state.bases[1] = true;
     detail = `${batterLabel()} ${play}`;
     recordPA(play, 1);
+    state.baseRunners[1] = {slot: currentTeam().batter, inning: state.inning};
     advanceBatter();
   } else {
     detail = `${batterLabel()} note: ${play}`;
@@ -444,15 +470,15 @@ function buildScorecardCell(pa){
 function renderScorecard(){
   const el = $("scorecardGrid");
   if (!el) return;
-  const key = state.batting;
+  const key = scorecardView;
   const team = state.teams[key];
   const pas = state.scorecard[key] || [];
 
-  // Team toggle
+  // Team toggle (view only — does not change game state)
   $("awayToggle").textContent = state.teams.away.name || "Visitor";
   $("homeToggle").textContent = state.teams.home.name || "Home";
-  $("awayToggle").classList.toggle("active", state.batting === "away");
-  $("homeToggle").classList.toggle("active", state.batting === "home");
+  $("awayToggle").classList.toggle("active", scorecardView === "away");
+  $("homeToggle").classList.toggle("active", scorecardView === "home");
 
   // Current batter label
   $("currentBatterLabel").textContent = batterLabel();
@@ -572,6 +598,214 @@ function downloadCsv(){
   a.click();
 }
 
+async function exportPdf(){
+  const btn = $("exportPdf");
+  btn.disabled = true;
+  btn.textContent = "Generating…";
+  try {
+    if (!window.jspdf){
+      await new Promise((res, rej) => {
+        const s = document.createElement("script");
+        s.src = "https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js";
+        s.onload = res; s.onerror = rej;
+        document.head.appendChild(s);
+      });
+    }
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF({ orientation:"landscape", unit:"pt", format:"letter" });
+    drawScorecardPage(doc, "away");
+    doc.addPage();
+    drawScorecardPage(doc, "home");
+    const away = state.teams.away.name.replace(/\s+/g,"_");
+    const home = state.teams.home.name.replace(/\s+/g,"_");
+    doc.save(`scorecard_${away}_vs_${home}.pdf`);
+  } catch(err){
+    alert("Could not generate PDF: " + err.message);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = "Export PDF";
+  }
+}
+
+function drawScorecardPage(doc, key){
+  // Landscape Letter = 792 × 612 pt
+  const PW = 792, M = 30;
+  const HEADER_H = 34, COL_HDR_H = 18, ROW_H = 50, TOTALS_H = 18;
+  const NAME_W = 105, STAT_W = 24;
+  const numInn = Math.max(state.inning, 9);
+  const INN_W = Math.min(51, Math.floor((PW - 2*M - NAME_W - 4*STAT_W) / numInn));
+  const GRID_W = NAME_W + numInn * INN_W + 4 * STAT_W;
+  const GRID_Y = M + HEADER_H + COL_HDR_H;
+  const D = 14; // diamond half-radius
+
+  const team = state.teams[key];
+  const lookup = {};
+  (state.scorecard[key] || []).forEach(pa => {
+    if (!lookup[pa.slot]) lookup[pa.slot] = {};
+    lookup[pa.slot][pa.inning] = pa;
+  });
+
+  // ── Header bar ─────────────────────────────────────────────
+  doc.setFillColor(7, 29, 58);
+  doc.rect(M, M, GRID_W, HEADER_H, "F");
+  doc.setFillColor(186, 12, 47);
+  doc.rect(M, M + HEADER_H - 3, GRID_W, 3, "F");
+
+  doc.setTextColor(255, 255, 255);
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(14);
+  doc.text(team.name, M + 8, M + HEADER_H / 2 + 5);
+
+  if (state.gameMeta){
+    const opp = state.teams[key === "away" ? "home" : "away"].name;
+    const parts = [
+      state.gameMeta.gameDate
+        ? new Date(state.gameMeta.gameDate).toLocaleDateString([], {month:"short", day:"numeric", year:"numeric"})
+        : null,
+      state.gameMeta.venue || null,
+      "vs " + opp
+    ].filter(Boolean);
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(8);
+    doc.text(parts.join("  ·  "), M + GRID_W - 6, M + HEADER_H / 2 + 5, {align:"right"});
+  }
+
+  // ── Column headers ─────────────────────────────────────────
+  const hdrY = M + HEADER_H;
+  doc.setFillColor(240, 243, 251);
+  doc.rect(M, hdrY, GRID_W, COL_HDR_H, "F");
+  doc.setTextColor(99, 112, 131);
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(8);
+  doc.text("Batter", M + 5, hdrY + COL_HDR_H / 2 + 3);
+  for (let i = 1; i <= numInn; i++){
+    doc.text(String(i), M + NAME_W + (i-1)*INN_W + INN_W/2, hdrY + COL_HDR_H/2 + 3, {align:"center"});
+  }
+  ["R","H","AB","RBI"].forEach((lbl, i) => {
+    doc.text(lbl, M + NAME_W + numInn*INN_W + i*STAT_W + STAT_W/2, hdrY + COL_HDR_H/2 + 3, {align:"center"});
+  });
+
+  // ── Batter rows ────────────────────────────────────────────
+  for (let slot = 0; slot < 9; slot++){
+    const ry = GRID_Y + slot * ROW_H;
+    const p = team.lineup[slot];
+    if (slot % 2 !== 0){
+      doc.setFillColor(248, 251, 255);
+      doc.rect(M, ry, GRID_W, ROW_H, "F");
+    }
+
+    // Slot number
+    doc.setTextColor(99, 112, 131);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(9);
+    doc.text(String(slot + 1), M + 5, ry + ROW_H/2 + 3);
+
+    // Player name + position
+    const name = p.name || "";
+    doc.setTextColor(14, 23, 38);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(9);
+    doc.text(name.length > 14 ? name.slice(0, 13) + "…" : name, M + 18, ry + ROW_H/2 + (p.pos ? 1 : 3));
+    if (p.pos){
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(7);
+      doc.setTextColor(99, 112, 131);
+      doc.text(p.pos, M + 18, ry + ROW_H/2 + 10);
+    }
+
+    // Inning diamonds
+    for (let inn = 1; inn <= numInn; inn++){
+      const pa = lookup[slot]?.[inn];
+      drawPdfDiamond(doc, M + NAME_W + (inn-1)*INN_W + INN_W/2, ry + ROW_H/2, D, pa);
+    }
+
+    // Per-batter stats
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(9);
+    doc.setTextColor(14, 23, 38);
+    [p.r||0, p.h||0, p.ab||0, p.rbi||0].forEach((v, i) => {
+      if (v > 0){
+        doc.text(String(v), M + NAME_W + numInn*INN_W + i*STAT_W + STAT_W/2, ry + ROW_H/2 + 3, {align:"center"});
+      }
+    });
+  }
+
+  // ── Grid lines ─────────────────────────────────────────────
+  doc.setDrawColor(201, 209, 220);
+  doc.setLineWidth(0.4);
+  doc.rect(M, GRID_Y, GRID_W, 9 * ROW_H, "S");
+  for (let i = 1; i < 9; i++){
+    doc.line(M, GRID_Y + i*ROW_H, M + GRID_W, GRID_Y + i*ROW_H);
+  }
+  doc.line(M + NAME_W, hdrY, M + NAME_W, GRID_Y + 9*ROW_H + TOTALS_H);
+  for (let i = 1; i < numInn; i++){
+    doc.line(M + NAME_W + i*INN_W, GRID_Y, M + NAME_W + i*INN_W, GRID_Y + 9*ROW_H);
+  }
+  for (let i = 0; i <= 4; i++){
+    doc.line(M + NAME_W + numInn*INN_W + i*STAT_W, hdrY, M + NAME_W + numInn*INN_W + i*STAT_W, GRID_Y + 9*ROW_H + TOTALS_H);
+  }
+
+  // ── Totals row ─────────────────────────────────────────────
+  const ty = GRID_Y + 9 * ROW_H;
+  doc.setFillColor(240, 243, 251);
+  doc.rect(M, ty, GRID_W, TOTALS_H, "F");
+  doc.rect(M, ty, GRID_W, TOTALS_H, "S");
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(8);
+  doc.setTextColor(7, 29, 58);
+  doc.text("Totals", M + 5, ty + TOTALS_H/2 + 3);
+
+  // Runs per inning in totals row
+  const halfIdx = (state.inning - 1) * 2 + (state.half === "Bottom" ? 1 : 0);
+  for (let inn = 1; inn <= numInn; inn++){
+    const done = key === "away" ? halfIdx > (inn-1)*2 : halfIdx > (inn-1)*2+1;
+    if (done){
+      const r = team.runs[Math.min(inn-1, 8)] || 0;
+      doc.text(String(r), M + NAME_W + (inn-1)*INN_W + INN_W/2, ty + TOTALS_H/2 + 3, {align:"center"});
+    }
+  }
+
+  const t = totals(team);
+  const totalAB  = team.lineup.reduce((s, p) => s + (p.ab  || 0), 0);
+  const totalRBI = team.lineup.reduce((s, p) => s + (p.rbi || 0), 0);
+  [t.r, t.h, totalAB, totalRBI].forEach((v, i) => {
+    doc.text(String(v), M + NAME_W + numInn*INN_W + i*STAT_W + STAT_W/2, ty + TOTALS_H/2 + 3, {align:"center"});
+  });
+}
+
+function drawPdfDiamond(doc, cx, cy, h, pa){
+  const reached = pa ? pa.reached : -1;
+
+  // Light gold fill when scored
+  if (reached >= 4){
+    doc.setFillColor(245, 225, 150);
+    doc.lines([[h,-h],[-h,-h],[-h,h]], cx, cy+h, [1,1], "F", true);
+  }
+
+  // Diamond outline
+  doc.setDrawColor(201, 209, 220);
+  doc.setLineWidth(0.5);
+  doc.lines([[h,-h],[-h,-h],[-h,h]], cx, cy+h, [1,1], "S", true);
+
+  // Active segments in gold
+  if (reached >= 1){
+    doc.setDrawColor(213, 168, 76);
+    doc.setLineWidth(1.5);
+    doc.line(cx, cy+h, cx+h, cy);
+    if (reached >= 2) doc.line(cx+h, cy, cx, cy-h);
+    if (reached >= 3) doc.line(cx, cy-h, cx-h, cy);
+    if (reached >= 4) doc.line(cx-h, cy, cx, cy+h);
+  }
+
+  // Result text
+  if (pa?.result){
+    doc.setTextColor(14, 23, 38);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(7);
+    doc.text(pa.result, cx, cy + 2.5, {align:"center"});
+  }
+}
+
 async function goLive(){
   if (!state.gameMeta?.gamePk) {
     alert("No game loaded. Use Game Setup to load a game first.");
@@ -625,6 +859,7 @@ async function goLive(){
     state.bases[1] = !!offense.first;
     state.bases[2] = !!offense.second;
     state.bases[3] = !!offense.third;
+    state.baseRunners = {1:null,2:null,3:null};
 
     // Advance to current batter if found in lineup by name
     if (offense.batter?.fullName) {
@@ -790,11 +1025,69 @@ function scoreError(){
   batter.ab++;
   state.bases[1] = true;
   recordPA(`E${pos}`, 1);
+  state.baseRunners[1] = {slot: currentTeam().batter, inning: state.inning};
   state.log.unshift(`${beforeHalf}: ${batterLabel()} E${pos}`);
   advanceBatter();
   closeErrorDialog();
   render();
 }
+
+let runnerDialogBase = null;
+const BASE_NAMES = ["","1st","2nd","3rd","home"];
+
+function openRunnerDialog(base){
+  runnerDialogBase = base;
+  $("runnerBaseLabel").textContent = BASE_NAMES[base];
+  $("runnerDialog").classList.remove("hidden");
+}
+function closeRunnerDialog(){ $("runnerDialog").classList.add("hidden"); runnerDialogBase = null; }
+
+function doAdvanceRunner(notation){
+  const base = runnerDialogBase;
+  const dest = base + 1;
+  const ref = state.baseRunners[base];
+  const team = state.teams[state.batting];
+  const playerName = ref ? (team.lineup[ref.slot]?.name || `Runner`) : "Runner";
+  const half = `${state.half} ${state.inning}`;
+
+  saveSnapshot();
+  state.bases[base] = false;
+  state.baseRunners[base] = null;
+  updatePAReached(ref, dest);
+
+  if (dest >= 4){
+    team.runs[currentInningIndex()]++;
+    if (ref && team.lineup[ref.slot]) team.lineup[ref.slot].r++;
+    state.log.unshift(`${half}: ${playerName} scores (${notation})`);
+  } else {
+    state.bases[dest] = true;
+    state.baseRunners[dest] = ref;
+    state.log.unshift(`${half}: ${notation} — ${playerName} to ${BASE_NAMES[dest]}`);
+  }
+
+  closeRunnerDialog();
+  render();
+}
+
+function doRunnerOut(){
+  const base = runnerDialogBase;
+  const ref = state.baseRunners[base];
+  const playerName = ref ? (state.teams[state.batting].lineup[ref.slot]?.name || "Runner") : "Runner";
+
+  saveSnapshot();
+  state.bases[base] = false;
+  state.baseRunners[base] = null;
+  state.log.unshift(`${state.half} ${state.inning}: ${playerName} out (${BASE_NAMES[base]})`);
+  addOuts(1);
+  closeRunnerDialog();
+  render();
+}
+
+$("runnerSteal").addEventListener("click",   ()=>doAdvanceRunner("SB"));
+$("runnerAdvance").addEventListener("click", ()=>doAdvanceRunner("ADV"));
+$("runnerOut").addEventListener("click",     doRunnerOut);
+$("runnerCancel").addEventListener("click",  closeRunnerDialog);
+$("runnerDialog").addEventListener("click", e=>{ if (e.target === $("runnerDialog")) closeRunnerDialog(); });
 
 $("errorBtn").addEventListener("click", openErrorDialog);
 $("errorCancel").addEventListener("click", closeErrorDialog);
@@ -829,11 +1122,11 @@ $("scoreRunner").addEventListener("click", ()=>{saveSnapshot(); addRun(); render
 $("nextHalf").addEventListener("click", ()=>{saveSnapshot(); endHalf(); render();});
 $("prevHalf").addEventListener("click", prevHalf);
 $("undo").addEventListener("click", restoreSnapshot);
-$("base1").addEventListener("click", ()=>{saveSnapshot(); state.bases[1]=!state.bases[1]; render();});
-$("base2").addEventListener("click", ()=>{saveSnapshot(); state.bases[2]=!state.bases[2]; render();});
-$("base3").addEventListener("click", ()=>{saveSnapshot(); state.bases[3]=!state.bases[3]; render();});
-$("awayToggle").addEventListener("click", ()=>{state.batting="away"; state.half="Top"; render();});
-$("homeToggle").addEventListener("click", ()=>{state.batting="home"; state.half="Bottom"; render();});
+$("base1").addEventListener("click", ()=>{ if (state.bases[1]) openRunnerDialog(1); else { saveSnapshot(); state.bases[1]=true; render(); } });
+$("base2").addEventListener("click", ()=>{ if (state.bases[2]) openRunnerDialog(2); else { saveSnapshot(); state.bases[2]=true; render(); } });
+$("base3").addEventListener("click", ()=>{ if (state.bases[3]) openRunnerDialog(3); else { saveSnapshot(); state.bases[3]=true; render(); } });
+$("awayToggle").addEventListener("click", ()=>{ scorecardView="away"; render(); });
+$("homeToggle").addEventListener("click", ()=>{ scorecardView="home"; render(); });
 $("nextBatter").addEventListener("click", ()=>{saveSnapshot(); advanceBatter(); render();});
 $("prevBatter").addEventListener("click", ()=>{saveSnapshot(); const t=currentTeam(); t.batter=(t.batter+8)%9; render();});
 $("awayName").addEventListener("input", ()=>{ state.teams.away.name = $("awayName").value || "Opponent"; render(); });
@@ -845,6 +1138,7 @@ $("copyLog").addEventListener("click", async ()=>{
 });
 $("clearLog").addEventListener("click", ()=>{saveSnapshot(); state.log=[]; render();});
 $("downloadCsv").addEventListener("click", downloadCsv);
+$("exportPdf").addEventListener("click", exportPdf);
 $("resetGame").addEventListener("click", ()=>{
   if (!confirm("Reset the whole game?")) return;
   stopPolling();
@@ -853,6 +1147,7 @@ $("resetGame").addEventListener("click", ()=>{
 });
 
 const hasSavedGame = loadFromStorage();
+scorecardView = state.batting;
 render();
 if (!hasSavedGame) fetchGames();
 else startPolling();

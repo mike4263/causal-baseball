@@ -206,9 +206,12 @@
     <section class="panel scorecard-panel">
       <div class="section-title">
         <h2>Scorecard</h2>
-        <div class="team-toggle" role="group">
-          <button id="awayToggle" class="active">Opponent</button>
-          <button id="homeToggle">Nationals</button>
+        <div style="display:flex;gap:8px;align-items:center">
+          <button id="exportPdf" class="ghost">Export PDF</button>
+          <div class="team-toggle" role="group">
+            <button id="awayToggle" class="active">Opponent</button>
+            <button id="homeToggle">Nationals</button>
+          </div>
         </div>
       </div>
       <div class="sc-wrap">
@@ -344,6 +347,18 @@
         <option value="9">9 – Right Field</option>
       </select>
       <button id="flyoutCancel" class="ghost">Cancel</button>
+    </div>
+  </div>
+
+  <div id="runnerDialog" class="flyout-overlay hidden" role="dialog" aria-modal="true" aria-label="Runner advancement">
+    <div class="flyout-card">
+      <h3>Runner on <span id="runnerBaseLabel"></span></h3>
+      <div class="runner-btns">
+        <button id="runnerSteal" class="play primary runner-btn">Steal Base</button>
+        <button id="runnerAdvance" class="play runner-btn">Advance</button>
+        <button id="runnerOut" class="play out runner-btn">Out</button>
+      </div>
+      <button id="runnerCancel" class="ghost runner-btn">Cancel</button>
     </div>
   </div>
 
